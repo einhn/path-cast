@@ -1,9 +1,10 @@
-// src/App.jsx
+import MapPage from './pages/MapPage';
+
 function App() {
   return (
     <div>
-      <h1>🚴‍♀️ Path-Cast 초기화 완료</h1>
+      <h1>🚴 Path-Cast: Kakao Map 연동</h1>
+      <MapPage />
     </div>
   );
 }
-export default App;
