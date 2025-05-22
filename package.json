@@ -1,0 +1,21 @@
+{
+  "name": "path-cast",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/einhn/path-cast.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/einhn/path-cast/issues"
+  },
+  "homepage": "https://github.com/einhn/path-cast#readme"
+}
