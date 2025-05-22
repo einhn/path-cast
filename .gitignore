@@ -1,7 +1,4 @@
-.github
-.github/*
 .vercel
-.vercelignore
 .vercel/*
 .env
 .env.*
