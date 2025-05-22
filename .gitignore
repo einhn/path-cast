@@ -1,3 +1,7 @@
+.vercel
+.env
+.github
+
 # Logs
 logs
 *.log
