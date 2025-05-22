@@ -1,6 +1,10 @@
-.vercel
-.env
 .github
+.github/*
+.vercel
+.vercelignore
+.vercel/*
+.env
+.env.*
 
 # Logs
 logs
