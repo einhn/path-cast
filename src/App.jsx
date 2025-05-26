@@ -1,4 +1,4 @@
-import MapPage from './pages/MapPage'; // 상대 경로에 따라 조정 필요
+import MapPage from './pages/MapPage';
 
 const App = () => {
   return (
