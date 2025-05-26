@@ -1,10 +1,4 @@
-# docker/Dockerfile
-FROM node:lts
+FROM nginx:latest
 
-WORKDIR /app
-COPY . .
-RUN npm install
-RUN npm run build
-
-EXPOSE 3000
-CMD ["npx", "serve", "dist"]
+COPY dist/ /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/nginx.conf
