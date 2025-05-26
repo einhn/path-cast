@@ -1,5 +1,6 @@
-// 📄 src/pages/MapPage.jsx
+// src/pages/MapPage.jsx
 import { useEffect, useRef, useState } from 'react';
+import { initBikePathDB } from '../utils/initBikePathDB';
 import { Autocomplete, TextField, Stack, Box, Button } from '@mui/material';
 
 const getBaseDateTime = () => {
@@ -26,6 +27,11 @@ const MapPage = () => {
   const [destinationKeyword, setDestinationKeyword] = useState('');
   const [originOptions, setOriginOptions] = useState([]);
   const [destinationOptions, setDestinationOptions] = useState([]);
+
+  // ✅ 0. 자전거길 데이터 IndexedDB에 저장 (한 번만 실행)
+  useEffect(() => {
+    initBikePathDB();
+  }, []);
 
   // ✅ 1. Kakao SDK 삽입 및 지도 초기화
   useEffect(() => {
