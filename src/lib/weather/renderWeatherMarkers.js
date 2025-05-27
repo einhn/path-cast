@@ -1,0 +1,89 @@
+/**
+ * 온도에 따라 텍스트 색상 결정
+ */
+const getTemperatureColor = (temp) => {
+  const t = parseFloat(temp);
+  if (t >= 30) return 'red';
+  if (t >= 20) return 'orange';
+  if (t >= 10) return 'blue';
+  return 'navy';
+};
+
+/**
+ * 풍향에 따라 화살표 회전 각도 (기상청 기준은 북=0, 시계방향)
+ */
+const getArrowStyle = (vec) => {
+  const degree = parseFloat(vec) || 0;
+  return `transform: rotate(${degree}deg); display: inline-block; transition: 0.3s;`;
+};
+
+/**
+ * 강수확률(POP) 50% 초과 항목이 있는지 확인
+ * @param {Array<{ category: string, fcstValue: string }>} forecast
+ * @returns {boolean}
+ */
+const hasHighPrecipitation = (forecast) => {
+  const pop = forecast.find(f => f.category === 'POP');
+  return pop && parseInt(pop.fcstValue, 10) > 50;
+};
+
+/**
+ * 지도 위에 날씨 정보를 커스텀 오버레이로 렌더링
+ * 
+ * @param {kakao.maps.Map} map
+ * @param {Array<{ lat: number, lng: number, id: string, gridX: number, gridY: number }>} points
+ * @param {string} baseDate
+ * @param {string} baseTime
+ * @param {(station: { id: string, gridX: number, gridY: number }, baseDate: string, baseTime: string) => Promise<Object[]|null>} fetchForecastByStation
+ */
+export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetchForecastByStation) {
+  for (const point of points) {
+    if (!point.id || !point.gridX || !point.gridY) {
+      console.warn('⚠️ station 정보 누락:', point);
+      continue;
+    }
+
+    const forecast = await fetchForecastByStation(
+      { id: point.id, gridX: point.gridX, gridY: point.gridY },
+      baseDate,
+      baseTime
+    );
+
+    if (!forecast) continue;
+
+    const temp = forecast.find((f) => f.category === 'T1H')?.fcstValue ?? '?';
+    const windDir = forecast.find((f) => f.category === 'VEC')?.fcstValue ?? '0';
+    const windSpd = forecast.find((f) => f.category === 'WSD')?.fcstValue ?? '?';
+    const hasRain = hasHighPrecipitation(forecast);
+
+    const latlng = new window.kakao.maps.LatLng(point.lat, point.lng);
+    const tempColor = getTemperatureColor(temp);
+    const arrow = `<span style="${getArrowStyle(windDir)}">⬆️</span>`;
+
+    const content = `
+      <div style="
+        background:#f9f9f9;
+        padding:6px 8px;
+        border-radius:6px;
+        border:1px solid #ccc;
+        font-size:12px;
+        text-align:center;
+        color:#333;
+        box-shadow:0 2px 6px rgba(0,0,0,0.2)">
+        <div style="color:${tempColor}; font-weight:bold;">🌡 ${temp}°C</div>
+        <div style="color:#333;">
+          ${arrow} ${windSpd}m/s
+        </div>
+        ${hasRain ? '<div style="color:#0288d1;margin-top:4px;">💧 강수 있음</div>' : ''}
+      </div>
+    `;
+
+    const overlay = new window.kakao.maps.CustomOverlay({
+      position: latlng,
+      content,
+      yAnchor: 1.5,
+    });
+
+    overlay.setMap(map);
+  }
+}
