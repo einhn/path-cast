@@ -12,11 +12,11 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Stop & Remove Existing Container
-        run: sudo docker rm -f path-cast || true
+      - name: Stop Existing Container
+        run: docker rm -f path-cast || true
 
-      - name: Pull Latest Docker Image
-        run: sudo docker pull proj/path-cast:latest
+      - name: Pull Latest Image
+        run: docker pull proj/path-cast:latest
 
-      - name: Run Docker Container
-        run: sudo docker run -d -p 80:3000 --name path-cast proj/path-cast:latest
+      - name: Run New Container
+        run: docker run -d -p 80:80 --name path-cast proj/path-cast:latest
