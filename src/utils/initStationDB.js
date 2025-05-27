@@ -1,20 +1,25 @@
 import { openDB } from 'idb';
 
-export const initStationDB = async () => {
+export async function initStationDB() {
   const db = await openDB('WeatherDB', 1, {
     upgrade(db) {
-      const store = db.createObjectStore('stations', { keyPath: 'id' });
-      store.createIndex('lat', 'lat');
-      store.createIndex('lon', 'lon');
-    },
+      if (!db.objectStoreNames.contains('stations')) {
+        db.createObjectStore('stations', { keyPath: 'id' });
+      }
+    }
   });
 
-  const response = await fetch('/data/weather_stations.json');
-  const stations = await response.json();
+  const existing = await db.getAll('stations');
+  if (existing.length > 0) return; // 이미 있으면 초기화 생략
 
-  for (const s of stations) {
-    await db.put('stations', s);
+  const res = await fetch('/data/stations.json');
+  const stations = await res.json();
+
+  const tx = db.transaction('stations', 'readwrite');
+  const store = tx.objectStore('stations');
+  for (const station of stations) {
+    store.put(station);
   }
-
-  console.log('✅ 기상관측소 데이터 저장 완료');
-};
+  await tx.done;
+  console.log('✅ 관측소 정보 IndexedDB에 저장 완료');
+}
