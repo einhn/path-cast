@@ -1,17 +1,18 @@
+// /api/weather.js (Vercel Serverless Function)
+
 export default async function handler(req, res) {
   // ✅ CORS 헤더
-  res.setHeader('Access-Control-Allow-Origin', '*'); // 개발 중에는 모든 Origin 허용
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // ✅ OPTIONS 요청 사전 처리
+  // ✅ OPTIONS 프리플라이트 요청 처리
   if (req.method === 'OPTIONS') {
     return res.status(204).end();
   }
 
   const { id, gridX, gridY, base_date, base_time } = req.query;
 
-  // ✅ 필수 파라미터 확인
   if (!id || !gridX || !gridY || !base_date || !base_time) {
     return res.status(400).json({ error: 'Missing required query parameters' });
   }
