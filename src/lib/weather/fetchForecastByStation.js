@@ -1,3 +1,4 @@
+// src/lib/weather/fetchForecastByStation.js
 /**
  * 기상청 초단기예보 데이터를 서버리스 프록시를 통해 조회
  *
