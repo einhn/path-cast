@@ -1,20 +1,9 @@
-// src/pages/MapPage.jsx
 import { useEffect, useRef, useState } from 'react';
 import { initBikePathDB } from '../utils/initBikePathDB';
+import { sampleRouteWithStations } from '@/lib/geo/sampleRouteWithStations';
+import { fetchForecastByStation } from '@/lib/weather/fetchForecastByStation';
 import { Autocomplete, TextField, Stack, Box, Button } from '@mui/material';
-
-const getBaseDateTime = () => {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const base_date = `${yyyy}${mm}${dd}`;
-  const minutes = now.getMinutes();
-  let hour = now.getHours();
-  if (minutes < 30) hour -= 1;
-  const base_time = `${String(hour).padStart(2, '0')}30`;
-  return { base_date, base_time };
-};
+import { getBaseDateTime } from '@/utils/getBaseDateTime';
 
 const MapPage = () => {
   const mapRef = useRef(null);
@@ -28,12 +17,10 @@ const MapPage = () => {
   const [originOptions, setOriginOptions] = useState([]);
   const [destinationOptions, setDestinationOptions] = useState([]);
 
-  // ✅ 0. 자전거길 데이터 IndexedDB에 저장 (한 번만 실행)
   useEffect(() => {
     initBikePathDB();
   }, []);
 
-  // ✅ 1. Kakao SDK 삽입 및 지도 초기화
   useEffect(() => {
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_JS_KEY}&autoload=false&libraries=services`;
@@ -49,35 +36,6 @@ const MapPage = () => {
     document.head.appendChild(script);
   }, []);
 
-  // ✅ 2. 기상청 API 호출 (1번만!)
-  useEffect(() => {
-    const fetchWeather = async () => {
-      const { base_date, base_time } = getBaseDateTime();
-      const nx = 60, ny = 127;
-      const key = import.meta.env.VITE_KMA_ENCODED_API_KEY;
-
-      const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst?serviceKey=${key}&numOfRows=60&pageNo=1&dataType=JSON&base_date=${base_date}&base_time=${base_time}&nx=${nx}&ny=${ny}`;
-
-      try {
-        const response = await fetch(url);
-        const text = await response.text();
-        console.log('📦 raw:', text);
-
-        const json = JSON.parse(text);
-        console.log('✅ JSON 파싱 성공:', json);
-
-        if (json.response?.body?.items?.item) {
-          console.log('🌤 날씨 항목:', json.response.body.items.item);
-        }
-      } catch (err) {
-        console.error('❌ weather fetch 실패:', err);
-      }
-    };
-
-    fetchWeather();
-  }, []);
-
-  // ✅ 3. 출발지 검색
   useEffect(() => {
     if (!originKeyword || !window.kakao) return;
     const ps = new window.kakao.maps.services.Places();
@@ -86,7 +44,6 @@ const MapPage = () => {
     });
   }, [originKeyword]);
 
-  // ✅ 4. 도착지 검색
   useEffect(() => {
     if (!destinationKeyword || !window.kakao) return;
     const ps = new window.kakao.maps.services.Places();
@@ -95,8 +52,7 @@ const MapPage = () => {
     });
   }, [destinationKeyword]);
 
-  // ✅ 5. 경로 생성
-  const handleSearchRoute = () => {
+  const handleSearchRoute = async () => {
     const map = mapObj.current;
     if (!map || !originPlace || !destinationPlace) return;
 
@@ -108,15 +64,30 @@ const MapPage = () => {
 
     if (polylineRef.current) polylineRef.current.setMap(null);
 
-    polylineRef.current = new window.kakao.maps.Polyline({
+    const polyline = new window.kakao.maps.Polyline({
       path: [from, to],
       strokeWeight: 5,
       strokeColor: '#007BFF',
       strokeOpacity: 0.7,
     });
-
-    polylineRef.current.setMap(map);
+    polyline.setMap(map);
+    polylineRef.current = polyline;
     map.setCenter(from);
+
+    const route = [
+      { lat: originPlace.y, lng: originPlace.x },
+      { lat: destinationPlace.y, lng: destinationPlace.x },
+    ];
+
+    const stationsRes = await fetch('/data/stations.json');
+    const stations = await stationsRes.json();
+    const { base_date, base_time } = getBaseDateTime();
+
+    const sampled = sampleRouteWithStations(route, stations, 500);
+    const filtered = sampled.filter(p => p.id && p.gridX && p.gridY);
+
+    const { renderWeatherMarkers } = await import('@/lib/weather/renderWeatherMarkers');
+    await renderWeatherMarkers(map, filtered, base_date, base_time, fetchForecastByStation);
   };
 
   return (
