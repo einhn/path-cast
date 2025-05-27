@@ -16,7 +16,7 @@ jobs:
         run: docker rm -f path-cast || true
 
       - name: Pull Latest Image
-        run: docker pull proj/path-cast:latest
+        run: docker pull einhn/path-cast:latest
 
       - name: Run New Container
-        run: docker run -d -p 80:80 --name path-cast proj/path-cast:latest
+        run: docker run -d -p 80:80 --name path-cast einhn/path-cast:latest

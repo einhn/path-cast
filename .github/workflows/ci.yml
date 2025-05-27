@@ -37,10 +37,10 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image
-        run: docker build -t proj/path-cast -f docker/Dockerfile .
+        run: docker build -t einhn/path-cast -f docker/Dockerfile .
 
       - name: Push Docker image
-        run: docker push proj/path-cast:latest
+        run: docker push einhn/path-cast:latest
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25
