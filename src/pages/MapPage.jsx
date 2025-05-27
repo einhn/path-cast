@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { initBikePathDB } from '../utils/initBikePathDB';
+import { initStationDB } from '../utils/initStationDB';
+import { getStationsFromDB } from '../utils/getStationsFromDB';
 import { sampleRouteWithStations } from '@/lib/geo/sampleRouteWithStations';
 import { fetchForecastByStation } from '@/lib/weather/fetchForecastByStation';
-import { Autocomplete, TextField, Stack, Box, Button } from '@mui/material';
 import { getBaseDateTime } from '@/utils/getBaseDateTime';
+import { Autocomplete, TextField, Stack, Box, Button } from '@mui/material';
 
 const MapPage = () => {
   const mapRef = useRef(null);
@@ -19,6 +21,7 @@ const MapPage = () => {
 
   useEffect(() => {
     initBikePathDB();
+    initStationDB();
   }, []);
 
   useEffect(() => {
@@ -79,8 +82,7 @@ const MapPage = () => {
       { lat: destinationPlace.y, lng: destinationPlace.x },
     ];
 
-    const stationsRes = await fetch('/data/stations.json');
-    const stations = await stationsRes.json();
+    const stations = await getStationsFromDB();
     const { base_date, base_time } = getBaseDateTime();
 
     const sampled = sampleRouteWithStations(route, stations, 500);
