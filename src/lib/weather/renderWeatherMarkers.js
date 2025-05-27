@@ -18,16 +18,6 @@ const getArrowStyle = (vec) => {
 };
 
 /**
- * 강수확률(POP) 50% 초과 항목이 있는지 확인
- * @param {Array<{ category: string, fcstValue: string }>} forecast
- * @returns {boolean}
- */
-const hasHighPrecipitation = (forecast) => {
-  const pop = forecast.find(f => f.category === 'POP');
-  return pop && parseInt(pop.fcstValue, 10) > 50;
-};
-
-/**
  * 지도 위에 날씨 정보를 커스텀 오버레이로 렌더링
  * 
  * @param {kakao.maps.Map} map
@@ -54,7 +44,13 @@ export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetc
     const temp = forecast.find((f) => f.category === 'T1H')?.fcstValue ?? '?';
     const windDir = forecast.find((f) => f.category === 'VEC')?.fcstValue ?? '0';
     const windSpd = forecast.find((f) => f.category === 'WSD')?.fcstValue ?? '?';
-    const hasRain = hasHighPrecipitation(forecast);
+    const popRaw = forecast.find((f) => f.category === 'POP')?.fcstValue;
+    const pop = popRaw !== undefined ? parseInt(popRaw, 10) : null;
+    const rainText = (pop === null || isNaN(pop))
+      ? '강수 확률 없음'
+      : pop <= 10
+        ? '강수 확률 없음'
+        : `강수 확률: ${pop}%`;
 
     const latlng = new window.kakao.maps.LatLng(point.lat, point.lng);
     const tempColor = getTemperatureColor(temp);
@@ -74,7 +70,7 @@ export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetc
         <div style="color:#333;">
           ${arrow} ${windSpd}m/s
         </div>
-        ${hasRain ? '<div style="color:#0288d1;margin-top:4px;">💧 강수 있음</div>' : ''}
+        <div style="color:#0288d1;margin-top:4px;">💧 ${rainText}</div>
       </div>
     `;
 
