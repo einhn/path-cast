@@ -27,7 +27,9 @@ const MapPage = () => {
   useEffect(() => {
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_JS_KEY}&autoload=false&libraries=services`;
+    script.async = true;
     script.onload = () => {
+      console.log('[Kakao SDK] Script loaded');
       window.kakao.maps.load(() => {
         const map = new window.kakao.maps.Map(mapRef.current, {
           center: new window.kakao.maps.LatLng(37.5665, 126.9780),
@@ -35,6 +37,9 @@ const MapPage = () => {
         });
         mapObj.current = map;
       });
+    };
+    script.onerror = () => {
+    console.error('[Kakao SDK] Script failed to load');
     };
     document.head.appendChild(script);
   }, []);
