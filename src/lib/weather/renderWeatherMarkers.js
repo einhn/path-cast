@@ -89,3 +89,44 @@ export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetc
 
   return overlays;
 }
+
+export function renderSingleWeatherMarker(map, station, forecast) {
+  try {
+    const position = new window.kakao.maps.LatLng(station.lat, station.lng);
+
+    const temp = forecast.find(f => f.category === 'T1H')?.fcstValue ?? '?';
+    const windDir = forecast.find(f => f.category === 'VEC')?.fcstValue ?? '0';
+    const windSpd = forecast.find(f => f.category === 'WSD')?.fcstValue ?? '?';
+    const popRaw = forecast.find(f => f.category === 'POP')?.fcstValue;
+    const pop = popRaw !== undefined ? parseInt(popRaw, 10) : null;
+
+    const rainText = (pop === null || isNaN(pop))
+      ? '강수 확률 없음'
+      : pop <= 10
+        ? '강수 확률 없음'
+        : `강수 확률: ${pop}%`;
+
+    const arrow = `<span style="${getArrowStyle(windDir)}">⬆️</span>`;
+    const tempColor = getTemperatureColor(temp);
+
+    const content = `
+      <div style="padding:5px; background:#fff; border:1px solid #999; border-radius:8px;">
+        <div style="color:${tempColor}; font-weight:bold;">🌡 ${temp}℃</div>
+        <div>💨 ${arrow} ${windSpd} m/s</div>
+        <div style="color:#0288d1;">💧 ${rainText}</div>
+      </div>
+    `;
+
+    const customOverlay = new window.kakao.maps.CustomOverlay({
+      map,
+      position,
+      content,
+      yAnchor: 1.5,
+    });
+
+    return customOverlay;
+  } catch (err) {
+    console.error('❌ Error rendering marker:', station, forecast, err);
+    return null;
+  }
+}

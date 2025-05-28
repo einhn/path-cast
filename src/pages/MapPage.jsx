@@ -3,14 +3,13 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { initBikePathDB } from '../utils/initBikePathDB';
 import { initStationDB } from '../utils/initStationDB';
 import { getStationsFromDB } from '../utils/getStationsFromDB';
-import { sampleRouteWithStations } from '@/lib/geo/sampleRouteWithStations';
+import { sampleRouteWithStations } from '@/lib/geo/getWeatherPointsBetween';
 import { fetchForecastByStation } from '@/lib/weather/fetchForecastByStation';
 import { getBaseDateTime } from '@/utils/getBaseDateTime';
 import {
   Autocomplete, TextField, Stack, Box, Button,
   IconButton, Tooltip, CssBaseline, ThemeProvider, createTheme,
 } from '@mui/material';
-import { WbSunny, DarkMode } from '@mui/icons-material';
 
 const MapPage = () => {
   const mapRef = useRef(null);
@@ -127,22 +126,36 @@ const MapPage = () => {
 
     const stations = await getStationsFromDB();
     const { base_date, base_time } = getBaseDateTime();
-    const sampled = await sampleRouteWithStations(route, stations, 500);
+    const sampled = await sampleRouteWithStations(
+      { lat: originPlace.y, lng: originPlace.x },
+      { lat: destinationPlace.y, lng: destinationPlace.x }
+    );
     const filtered = sampled.filter(p => p.id && p.gridX && p.gridY);
 
-    const { renderWeatherMarkers } = await import('@/lib/weather/renderWeatherMarkers');
-    const overlays = await renderWeatherMarkers(
-      map, filtered, base_date, base_time,
-      async (station, baseDate, baseTime) => {
-        const cacheKey = `${station.id}_${baseDate}_${baseTime}`;
-        if (forecastCache.current.has(cacheKey)) {
-          return forecastCache.current.get(cacheKey);
-        }
-        const result = await fetchForecastByStation(station, baseDate, baseTime);
-        if (result) forecastCache.current.set(cacheKey, result);
-        return result;
+    // 내부 렌더링 유틸 불러오기
+    const { renderSingleWeatherMarker } = await import('@/lib/weather/renderWeatherMarkers');
+
+    const markers = [];
+
+    for (const station of filtered) {
+      const cacheKey = `${station.id}_${base_date}_${base_time}`;
+
+      let forecast = forecastCache.current.get(cacheKey);
+      if (!forecast) {
+        forecast = await fetchForecastByStation(station, base_date, base_time);
+        if (forecast) forecastCache.current.set(cacheKey, forecast);
       }
-    );
+
+      if (forecast) {
+        const overlay = renderSingleWeatherMarker(map, station, forecast);
+        if (overlay) {
+          overlay.setMap(map);
+          markers.push(overlay);
+        }
+      }
+    }
+
+    weatherOverlaysRef.current = markers;
 
     // ✅ 새 오버레이 저장 및 추후 제거를 위해 등록
     overlays?.forEach(o => o.setMap(map));
