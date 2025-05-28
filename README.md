@@ -124,7 +124,6 @@ path-cast/
 - 로컬: `localhost:5173` (`npm run dev`)
 - Vercel: [https://vercel-serverless-ebon.vercel.app](https://vercel-serverless-ebon.vercel.app)
 - EC2 배포: [http://3.38.53.101](http://3.38.53.101)
-- Docker Hub: [`einhn/path-cast`](https://hub.docker.com/r/einhn/path-cast)
 - Serverless API: `/api/weather`
 
 ---
