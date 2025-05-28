@@ -28,67 +28,6 @@ const getArrowStyle = (vec) => {
  * @param {(station: { id: string, gridX: number, gridY: number }, baseDate: string, baseTime: string) => Promise<Object[]|null>} fetchForecastByStation
  * @returns {Promise<kakao.maps.CustomOverlay[]>} 날씨 오버레이 배열
  */
-export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetchForecastByStation) {
-  const overlays = [];
-
-  for (const point of points) {
-    if (!point.id || !point.gridX || !point.gridY) {
-      console.warn('⚠️ station 정보 누락:', point);
-      continue;
-    }
-
-    const forecast = await fetchForecastByStation(
-      { id: point.id, gridX: point.gridX, gridY: point.gridY },
-      baseDate,
-      baseTime
-    );
-
-    if (!forecast) continue;
-
-    const temp = forecast.find(f => f.category === 'T1H')?.fcstValue ?? '?';
-    const windDir = forecast.find(f => f.category === 'VEC')?.fcstValue ?? '0';
-    const windSpd = forecast.find(f => f.category === 'WSD')?.fcstValue ?? '?';
-    const popRaw = forecast.find(f => f.category === 'POP')?.fcstValue;
-    const pop = popRaw !== undefined ? parseInt(popRaw, 10) : null;
-    const rainText = (pop === null || isNaN(pop))
-      ? '강수 확률 없음'
-      : pop <= 10
-        ? '강수 확률 없음'
-        : `강수 확률: ${pop}%`;
-
-    const latlng = new window.kakao.maps.LatLng(point.lat, point.lng);
-    const tempColor = getTemperatureColor(temp);
-    const arrow = `<span style="${getArrowStyle(windDir)}">⬆️</span>`;
-
-    const content = `
-      <div style="
-        background:#f9f9f9;
-        padding:6px 8px;
-        border-radius:6px;
-        border:1px solid #ccc;
-        font-size:12px;
-        text-align:center;
-        color:#333;
-        box-shadow:0 2px 6px rgba(0,0,0,0.2)">
-        <div style="color:${tempColor}; font-weight:bold;">🌡 ${temp}°C</div>
-        <div style="color:#333;">
-          ${arrow} ${windSpd}m/s
-        </div>
-        <div style="color:#0288d1;margin-top:4px;">💧 ${rainText}</div>
-      </div>
-    `;
-
-    const overlay = new window.kakao.maps.CustomOverlay({
-      position: latlng,
-      content,
-      yAnchor: 1.5,
-    });
-
-    overlays.push(overlay); // ❗ setMap(map)은 외부에서 수행
-  }
-
-  return overlays;
-}
 
 export function renderSingleWeatherMarker(map, station, forecast) {
   try {
@@ -112,7 +51,7 @@ export function renderSingleWeatherMarker(map, station, forecast) {
     const content = `
       <div style="padding:5px; background:#fff; border:1px solid #999; border-radius:8px;">
         <div style="color:${tempColor}; font-weight:bold;">🌡 ${temp}℃</div>
-        <div>💨 ${arrow} ${windSpd} m/s</div>
+        <div style="color:black;">💨 ${arrow} ${windSpd} m/s</div>
         <div style="color:#0288d1;">💧 ${rainText}</div>
       </div>
     `;
