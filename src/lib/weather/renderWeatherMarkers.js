@@ -1,3 +1,4 @@
+// src/lib/weater/renderWeatherMarkers.js
 /**
  * 온도에 따라 텍스트 색상 결정
  */
@@ -18,15 +19,18 @@ const getArrowStyle = (vec) => {
 };
 
 /**
- * 지도 위에 날씨 정보를 커스텀 오버레이로 렌더링
- * 
+ * 지도 위에 날씨 정보를 CustomOverlay로 생성하고 반환
+ *
  * @param {kakao.maps.Map} map
  * @param {Array<{ lat: number, lng: number, id: string, gridX: number, gridY: number }>} points
  * @param {string} baseDate
  * @param {string} baseTime
  * @param {(station: { id: string, gridX: number, gridY: number }, baseDate: string, baseTime: string) => Promise<Object[]|null>} fetchForecastByStation
+ * @returns {Promise<kakao.maps.CustomOverlay[]>} 날씨 오버레이 배열
  */
 export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetchForecastByStation) {
+  const overlays = [];
+
   for (const point of points) {
     if (!point.id || !point.gridX || !point.gridY) {
       console.warn('⚠️ station 정보 누락:', point);
@@ -41,10 +45,10 @@ export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetc
 
     if (!forecast) continue;
 
-    const temp = forecast.find((f) => f.category === 'T1H')?.fcstValue ?? '?';
-    const windDir = forecast.find((f) => f.category === 'VEC')?.fcstValue ?? '0';
-    const windSpd = forecast.find((f) => f.category === 'WSD')?.fcstValue ?? '?';
-    const popRaw = forecast.find((f) => f.category === 'POP')?.fcstValue;
+    const temp = forecast.find(f => f.category === 'T1H')?.fcstValue ?? '?';
+    const windDir = forecast.find(f => f.category === 'VEC')?.fcstValue ?? '0';
+    const windSpd = forecast.find(f => f.category === 'WSD')?.fcstValue ?? '?';
+    const popRaw = forecast.find(f => f.category === 'POP')?.fcstValue;
     const pop = popRaw !== undefined ? parseInt(popRaw, 10) : null;
     const rainText = (pop === null || isNaN(pop))
       ? '강수 확률 없음'
@@ -80,6 +84,8 @@ export async function renderWeatherMarkers(map, points, baseDate, baseTime, fetc
       yAnchor: 1.5,
     });
 
-    overlay.setMap(map);
+    overlays.push(overlay); // ❗ setMap(map)은 외부에서 수행
   }
+
+  return overlays;
 }
