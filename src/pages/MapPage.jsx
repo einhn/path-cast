@@ -6,13 +6,18 @@ import { getStationsFromDB } from '../utils/getStationsFromDB';
 import { sampleRouteWithStations } from '@/lib/geo/sampleRouteWithStations';
 import { fetchForecastByStation } from '@/lib/weather/fetchForecastByStation';
 import { getBaseDateTime } from '@/utils/getBaseDateTime';
-import { Autocomplete, TextField, Stack, Box, Button, IconButton, Tooltip, CssBaseline, ThemeProvider, createTheme, } from '@mui/material';
+import {
+  Autocomplete, TextField, Stack, Box, Button,
+  IconButton, Tooltip, CssBaseline, ThemeProvider, createTheme,
+} from '@mui/material';
 import { WbSunny, DarkMode } from '@mui/icons-material';
 
 const MapPage = () => {
   const mapRef = useRef(null);
   const mapObj = useRef(null);
   const polylineRef = useRef(null);
+  const markerRefs = useRef([]); // ✅ 출발지/도착지 마커 저장
+  const weatherOverlaysRef = useRef([]); // ✅ 기상 오버레이 저장
   const forecastCache = useRef(new Map());
 
   const [originPlace, setOriginPlace] = useState(null);
@@ -28,24 +33,19 @@ const MapPage = () => {
     return saved ? saved === 'true' : prefersDark;
   });
 
-  // 🌗 ThemeProvider를 위한 다크/라이트 테마 정의
   const theme = useMemo(() => createTheme({
-    palette: {
-      mode: isDark ? 'dark' : 'light',
-    },
+    palette: { mode: isDark ? 'dark' : 'light' },
   }), [isDark]);
 
   useEffect(() => {
     localStorage.setItem('isDarkMode', isDark.toString());
   }, [isDark]);
 
-  // IndexedDB 초기화
   useEffect(() => {
     initBikePathDB();
     initStationDB();
   }, []);
 
-  // Kakao 지도 SDK 로드
   useEffect(() => {
     const script = document.createElement('script');
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=8419604bc286ea9fea55a35ef3f8fe53&autoload=false&libraries=services`;
@@ -60,18 +60,14 @@ const MapPage = () => {
         mapObj.current = map;
       });
     };
-    script.onerror = () => {
-      console.error('[Kakao SDK] Script failed to load');
-    };
+    script.onerror = () => console.error('[Kakao SDK] Script failed to load');
     document.head.appendChild(script);
   }, []);
 
-  // 장소 검색 자동완성 공통 함수
   const fetchPlaceOptions = (keyword, setOptions) => {
     if (!keyword || !window.kakao) return;
     const ps = new window.kakao.maps.services.Places();
     ps.keywordSearch(keyword, (result, status) => {
-      // 중복 키 제거
       const seen = new Set();
       const unique = result?.filter(r => {
         if (seen.has(r.id)) return false;
@@ -92,19 +88,28 @@ const MapPage = () => {
     fetchPlaceOptions(destinationKeyword, setDestinationOptions);
   }, [destinationKeyword]);
 
-  // 경로 생성 및 날씨 정보 시각화 처리
   const handleSearchRoute = async () => {
     const map = mapObj.current;
     if (!map || !originPlace || !destinationPlace) return;
 
-    const from = new window.kakao.maps.LatLng(originPlace.y, originPlace.x);
-    const to = new window.kakao.maps.LatLng(destinationPlace.y, destinationPlace.x);
-
-    new window.kakao.maps.Marker({ map, position: from });
-    new window.kakao.maps.Marker({ map, position: to });
-
+    // ✅ 이전 마커, 오버레이, 경로 제거
+    markerRefs.current.forEach(m => m.setMap(null));
+    weatherOverlaysRef.current.forEach(o => o.setMap(null));
     if (polylineRef.current) polylineRef.current.setMap(null);
 
+    markerRefs.current = [];
+    weatherOverlaysRef.current = [];
+    polylineRef.current = null;
+
+    // ✅ 새 출발/도착 마커
+    const from = new window.kakao.maps.LatLng(originPlace.y, originPlace.x);
+    const to = new window.kakao.maps.LatLng(destinationPlace.y, destinationPlace.x);
+    markerRefs.current.push(
+      new window.kakao.maps.Marker({ map, position: from }),
+      new window.kakao.maps.Marker({ map, position: to })
+    );
+
+    // ✅ 경로 폴리라인
     const polyline = new window.kakao.maps.Polyline({
       path: [from, to],
       strokeWeight: 5,
@@ -121,22 +126,27 @@ const MapPage = () => {
     ];
 
     const stations = await getStationsFromDB();
-    console.log('[DEBUG] station length:', stations.length);
     const { base_date, base_time } = getBaseDateTime();
-
     const sampled = await sampleRouteWithStations(route, stations, 500);
     const filtered = sampled.filter(p => p.id && p.gridX && p.gridY);
 
     const { renderWeatherMarkers } = await import('@/lib/weather/renderWeatherMarkers');
-    await renderWeatherMarkers(map, filtered, base_date, base_time, async (station, baseDate, baseTime) => {
-      const cacheKey = `${station.id}_${baseDate}_${baseTime}`;
-      if (forecastCache.current.has(cacheKey)) {
-        return forecastCache.current.get(cacheKey);
+    const overlays = await renderWeatherMarkers(
+      map, filtered, base_date, base_time,
+      async (station, baseDate, baseTime) => {
+        const cacheKey = `${station.id}_${baseDate}_${baseTime}`;
+        if (forecastCache.current.has(cacheKey)) {
+          return forecastCache.current.get(cacheKey);
+        }
+        const result = await fetchForecastByStation(station, baseDate, baseTime);
+        if (result) forecastCache.current.set(cacheKey, result);
+        return result;
       }
-      const result = await fetchForecastByStation(station, baseDate, baseTime);
-      if (result) forecastCache.current.set(cacheKey, result);
-      return result;
-    });
+    );
+
+    // ✅ 새 오버레이 저장 및 추후 제거를 위해 등록
+    overlays?.forEach(o => o.setMap(map));
+    weatherOverlaysRef.current = overlays || [];
   };
 
   return (
@@ -180,7 +190,7 @@ const MapPage = () => {
           {/* 테마 전환 버튼 */}
           <Tooltip title={isDark ? 'Use Light Mode' : 'Use Dark Mode'}>
             <IconButton onClick={() => setIsDark(!isDark)}>
-              {isDark ? <WbSunny /> : <DarkMode />}
+              {isDark ? '🌞' : '🌛'}
             </IconButton>
           </Tooltip>
         </Stack>
