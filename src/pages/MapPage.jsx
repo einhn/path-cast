@@ -1,32 +1,54 @@
-import { useEffect, useRef, useState } from 'react';
+// MapPage.jsx
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { initBikePathDB } from '../utils/initBikePathDB';
 import { initStationDB } from '../utils/initStationDB';
 import { getStationsFromDB } from '../utils/getStationsFromDB';
 import { sampleRouteWithStations } from '@/lib/geo/sampleRouteWithStations';
 import { fetchForecastByStation } from '@/lib/weather/fetchForecastByStation';
 import { getBaseDateTime } from '@/utils/getBaseDateTime';
-import { Autocomplete, TextField, Stack, Box, Button } from '@mui/material';
+import { Autocomplete, TextField, Stack, Box, Button, IconButton, Tooltip, CssBaseline, ThemeProvider, createTheme, } from '@mui/material';
+import { WbSunny, DarkMode } from '@mui/icons-material';
 
 const MapPage = () => {
   const mapRef = useRef(null);
   const mapObj = useRef(null);
   const polylineRef = useRef(null);
+  const forecastCache = useRef(new Map());
 
   const [originPlace, setOriginPlace] = useState(null);
   const [destinationPlace, setDestinationPlace] = useState(null);
-  const [originKeyword, setOriginKeyword] = useState('');
-  const [destinationKeyword, setDestinationKeyword] = useState('');
+  const [originKeyword, setOriginKeyword] = useState(localStorage.getItem('originKeyword') || '');
+  const [destinationKeyword, setDestinationKeyword] = useState(localStorage.getItem('destinationKeyword') || '');
   const [originOptions, setOriginOptions] = useState([]);
   const [destinationOptions, setDestinationOptions] = useState([]);
 
+  const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('isDarkMode');
+    return saved ? saved === 'true' : prefersDark;
+  });
+
+  // 🌗 ThemeProvider를 위한 다크/라이트 테마 정의
+  const theme = useMemo(() => createTheme({
+    palette: {
+      mode: isDark ? 'dark' : 'light',
+    },
+  }), [isDark]);
+
+  useEffect(() => {
+    localStorage.setItem('isDarkMode', isDark.toString());
+  }, [isDark]);
+
+  // IndexedDB 초기화
   useEffect(() => {
     initBikePathDB();
     initStationDB();
   }, []);
 
+  // Kakao 지도 SDK 로드
   useEffect(() => {
     const script = document.createElement('script');
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${import.meta.env.VITE_KAKAO_JS_KEY}&autoload=false&libraries=services`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=8419604bc286ea9fea55a35ef3f8fe53&autoload=false&libraries=services`;
     script.async = true;
     script.onload = () => {
       console.log('[Kakao SDK] Script loaded');
@@ -39,27 +61,38 @@ const MapPage = () => {
       });
     };
     script.onerror = () => {
-    console.error('[Kakao SDK] Script failed to load');
+      console.error('[Kakao SDK] Script failed to load');
     };
     document.head.appendChild(script);
   }, []);
 
-  useEffect(() => {
-    if (!originKeyword || !window.kakao) return;
+  // 장소 검색 자동완성 공통 함수
+  const fetchPlaceOptions = (keyword, setOptions) => {
+    if (!keyword || !window.kakao) return;
     const ps = new window.kakao.maps.services.Places();
-    ps.keywordSearch(originKeyword, (result, status) => {
-      setOriginOptions(status === window.kakao.maps.services.Status.OK ? result : []);
+    ps.keywordSearch(keyword, (result, status) => {
+      // 중복 키 제거
+      const seen = new Set();
+      const unique = result?.filter(r => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+      setOptions(status === window.kakao.maps.services.Status.OK ? unique : []);
     });
+  };
+
+  useEffect(() => {
+    localStorage.setItem('originKeyword', originKeyword);
+    fetchPlaceOptions(originKeyword, setOriginOptions);
   }, [originKeyword]);
 
   useEffect(() => {
-    if (!destinationKeyword || !window.kakao) return;
-    const ps = new window.kakao.maps.services.Places();
-    ps.keywordSearch(destinationKeyword, (result, status) => {
-      setDestinationOptions(status === window.kakao.maps.services.Status.OK ? result : []);
-    });
+    localStorage.setItem('destinationKeyword', destinationKeyword);
+    fetchPlaceOptions(destinationKeyword, setDestinationOptions);
   }, [destinationKeyword]);
 
+  // 경로 생성 및 날씨 정보 시각화 처리
   const handleSearchRoute = async () => {
     const map = mapObj.current;
     if (!map || !originPlace || !destinationPlace) return;
@@ -88,48 +121,74 @@ const MapPage = () => {
     ];
 
     const stations = await getStationsFromDB();
+    console.log('[DEBUG] station length:', stations.length);
     const { base_date, base_time } = getBaseDateTime();
 
-    const sampled = sampleRouteWithStations(route, stations, 500);
+    const sampled = await sampleRouteWithStations(route, stations, 500);
     const filtered = sampled.filter(p => p.id && p.gridX && p.gridY);
 
     const { renderWeatherMarkers } = await import('@/lib/weather/renderWeatherMarkers');
-    await renderWeatherMarkers(map, filtered, base_date, base_time, fetchForecastByStation);
+    await renderWeatherMarkers(map, filtered, base_date, base_time, async (station, baseDate, baseTime) => {
+      const cacheKey = `${station.id}_${baseDate}_${baseTime}`;
+      if (forecastCache.current.has(cacheKey)) {
+        return forecastCache.current.get(cacheKey);
+      }
+      const result = await fetchForecastByStation(station, baseDate, baseTime);
+      if (result) forecastCache.current.set(cacheKey, result);
+      return result;
+    });
   };
 
   return (
-    <>
-      <Stack direction="row" spacing={2} sx={{ p: 2 }}>
-        <Autocomplete
-          freeSolo
-          options={originOptions}
-          getOptionLabel={(opt) => opt?.place_name || ''}
-          onInputChange={(e, value) => setOriginKeyword(value)}
-          onChange={(e, value) => value && setOriginPlace(value)}
-          renderInput={(params) => (
-            <TextField {...params} label="출발지" fullWidth size="small" />
-          )}
-        />
-        <Autocomplete
-          freeSolo
-          options={destinationOptions}
-          getOptionLabel={(opt) => opt?.place_name || ''}
-          onInputChange={(e, value) => setDestinationKeyword(value)}
-          onChange={(e, value) => value && setDestinationPlace(value)}
-          renderInput={(params) => (
-            <TextField {...params} label="도착지" fullWidth size="small" />
-          )}
-        />
-        <Button variant="contained" onClick={handleSearchRoute}>
-          경로 생성
-        </Button>
-      </Stack>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ width: '100vw', height: '100vh' }}>
+        {/* 검색 UI */}
+        <Stack direction="row" spacing={2} sx={{ p: 2, justifyContent: 'center', alignItems: 'center' }}>
+          <Autocomplete
+            sx={{ width: '30%' }}
+            freeSolo
+            options={originOptions}
+            getOptionLabel={(opt) => opt?.place_name || ''}
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+            onInputChange={(e, value) => setOriginKeyword(value)}
+            onChange={(e, value) => value && setOriginPlace(value)}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>{option.place_name}</li>
+            )}
+            renderInput={(params) => <TextField {...params} label="출발지" size="small" variant="outlined" />}
+          />
 
-      <Box
-        ref={mapRef}
-        sx={{ width: '100vw', height: '80vh', borderTop: '1px solid #ccc' }}
-      />
-    </>
+          <Autocomplete
+            sx={{ width: '30%' }}
+            freeSolo
+            options={destinationOptions}
+            getOptionLabel={(opt) => opt?.place_name || ''}
+            isOptionEqualToValue={(opt, val) => opt.id === val.id}
+            onInputChange={(e, value) => setDestinationKeyword(value)}
+            onChange={(e, value) => value && setDestinationPlace(value)}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>{option.place_name}</li>
+            )}
+            renderInput={(params) => <TextField {...params} label="도착지" size="small" variant="outlined" />}
+          />
+
+          <Button variant="contained" onClick={handleSearchRoute} sx={{ height: 40 }}>
+            경로 생성
+          </Button>
+
+          {/* 테마 전환 버튼 */}
+          <Tooltip title={isDark ? 'Use Light Mode' : 'Use Dark Mode'}>
+            <IconButton onClick={() => setIsDark(!isDark)}>
+              {isDark ? <WbSunny /> : <DarkMode />}
+            </IconButton>
+          </Tooltip>
+        </Stack>
+
+        {/* 지도 표시 영역 */}
+        <Box ref={mapRef} sx={{ width: '100vw', height: 'calc(100vh - 64px)' }} />
+      </Box>
+    </ThemeProvider>
   );
 };
 
