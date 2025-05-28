@@ -112,7 +112,7 @@ export function renderSingleWeatherMarker(map, station, forecast) {
     const content = `
       <div style="padding:5px; background:#fff; border:1px solid #999; border-radius:8px;">
         <div style="color:${tempColor}; font-weight:bold;">🌡 ${temp}℃</div>
-        <div>💨 ${arrow} ${windSpd} m/s</div>
+        <div style="color:black;">💨 ${arrow} ${windSpd} m/s</div>
         <div style="color:#0288d1;">💧 ${rainText}</div>
       </div>
     `;
